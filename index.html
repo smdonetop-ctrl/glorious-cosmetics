@@ -29,7 +29,7 @@
   </ul>
 
   <div class="nav-actions">
-    <button class="nav-cart-btn" aria-label="View cart"><span>Cart (0)</span></button>
+    <button class="nav-cart-btn" id="nav-cart-btn" aria-label="View cart"><span>Cart (0)</span></button>
   </div>
 </nav>
 
@@ -607,6 +607,15 @@ function isValidEmail(val) {
 function getCsrfToken() {
   return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 }
+
+/* ─────────────────────────────────────────
+   ✅ NEW — Cart button functionality
+   ينقل المستخدم إلى صفحة الدفع
+───────────────────────────────────────── */
+const navCartBtn = document.getElementById('nav-cart-btn');
+navCartBtn.addEventListener('click', function() {
+  window.location.href = 'checkout.html';
+});
 
 /* ─────────────────────────────────────────
    Nav scroll
