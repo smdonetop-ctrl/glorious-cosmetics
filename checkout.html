@@ -13,7 +13,7 @@
 
   <nav id="main-nav" role="navigation" aria-label="Main navigation">
     <a href="index.html" class="nav-logo" aria-label="العودة إلى المتجر">
-      <img src="../assets/imgs/logo.jpg" alt="Glorious Cosmetics Logo" class="nav-logo-img">
+      <h1 class="nav-logo-text">Glorious Cosmetics</h1>
     </a>
     <div class="nav-actions">
       <a href="index.html" class="btn-light">العودة للمتجر</a>
@@ -42,16 +42,22 @@
           <strong id="checkout-product">لم يتم اختيار أي منتج بعد.</strong>
         </div>
         <div class="checkout-summary-row">
-          <span>السعر</span>
+          <span>السعر الوحدة</span>
           <strong id="checkout-price">0 DA</strong>
         </div>
+
         <div class="checkout-summary-row">
           <span>الكمية</span>
-          <strong>1</strong>
+          <div class="quantity-selector">
+            <button id="qty-minus" class="qty-btn" type="button" aria-label="تقليل الكمية">−</button>
+            <input id="checkout-quantity" type="number" class="qty-input" value="1" min="1" max="100" readonly>
+            <button id="qty-plus" class="qty-btn" type="button" aria-label="زيادة الكمية">+</button>
+          </div>
         </div>
-        <div class="checkout-summary-row">
-          <span>التوصيل المتوقع</span>
-          <strong>2-4 أيام عمل</strong>
+
+        <div class="checkout-summary-row total-row">
+          <span>الإجمالي</span>
+          <strong id="checkout-total">0 DA</strong>
         </div>
 
         <div class="checkout-highlights">
@@ -160,18 +166,65 @@
 
     const productField = document.getElementById('checkout-product');
     const priceField = document.getElementById('checkout-price');
+    const quantityInput = document.getElementById('checkout-quantity');
+    const totalField = document.getElementById('checkout-total');
+    const qtyMinus = document.getElementById('qty-minus');
+    const qtyPlus = document.getElementById('qty-plus');
     const messageField = document.getElementById('checkout-message');
     const form = document.getElementById('checkout-form');
     const nameInput = document.getElementById('customer-name');
     const phoneInput = document.getElementById('customer-phone');
-    const noteField = document.getElementById('checkout-note');
-    const productName = sanitizeText(getQueryParam('product')) || 'منتج غير معروف';
-    const productPrice = sanitizeText(getQueryParam('price')) || '0 DA';
+    const cartItems = JSON.parse(localStorage.getItem('glorious-cart') || '[]');
+    const fromCart = getQueryParam('fromCart') === '1';
+    const productName = fromCart && cartItems.length
+      ? cartItems.map(function(item) { return sanitizeText(item.name) + ' × ' + item.quantity; }).join(', ')
+      : sanitizeText(getQueryParam('product')) || 'منتج غير معروف';
+    const productPrice = fromCart && cartItems.length
+      ? (cartItems.reduce(function(sum, item) {
+          return sum + (item.price || 0) * (item.quantity || 1);
+        }, 0) + ' DA')
+      : sanitizeText(getQueryParam('price')) || '0 DA';
     const emailInput = document.getElementById('customer-email');
     const cityInput = document.getElementById('customer-city');
     const addressInput = document.getElementById('customer-address');
     const paymentInputs = document.getElementsByName('payment');
-    const footerNote = document.getElementById('checkout-note');
+
+    // استخراج القيمة الرقمية من السعر
+    function extractPrice(priceStr) {
+      const match = priceStr.match(/(\d+)/);
+      return match ? parseInt(match[1], 10) : 0;
+    }
+
+    const basePrice = extractPrice(productPrice);
+
+    function updateTotal() {
+      const quantity = parseInt(quantityInput.value, 10) || 1;
+      const total = basePrice * quantity;
+      totalField.textContent = total + ' DA';
+    }
+
+    productField.textContent = productName;
+    priceField.textContent = productPrice;
+    updateTotal();
+
+    // إضافة مستمع للأزرار
+    qtyMinus.addEventListener('click', function() {
+      let current = parseInt(quantityInput.value, 10) || 1;
+      if (current > 1) {
+        quantityInput.value = current - 1;
+        updateTotal();
+      }
+    });
+
+    qtyPlus.addEventListener('click', function() {
+      let current = parseInt(quantityInput.value, 10) || 1;
+      if (current < 100) {
+        quantityInput.value = current + 1;
+        updateTotal();
+      }
+    });
+
+    quantityInput.addEventListener('change', updateTotal);
 
     const confirmationSection = document.querySelector('.order-confirmation');
     const orderNumberField = document.getElementById('order-number');
@@ -186,10 +239,15 @@
 
     productField.textContent = productName;
     priceField.textContent = productPrice;
+    updateTotal();
 
     if (productName === 'منتج غير معروف') {
-      footerNote.textContent = 'لا يمكن إكمال الطلب بدون اختيار منتج. عد إلى الصفحة الرئيسية واختر منتجاً.';
-      footerNote.style.color = '#f38b8b';
+      form.style.opacity = '0.6';
+      form.style.pointerEvents = 'none';
+      const warningMsg = document.createElement('div');
+      warningMsg.className = 'checkout-message error';
+      warningMsg.textContent = 'لا يمكن إكمال الطلب بدون اختيار منتج. عد إلى الصفحة الرئيسية واختر منتجاً.';
+      form.parentNode.insertBefore(warningMsg, form);
     }
 
     function validateName(value) {
@@ -224,10 +282,12 @@
     function downloadInvoice(orderData) {
       const lines = [
         'فاتورة طلب Glorious Cosmetics',
-        '-----------------------------',
+        '=============================',
         `رقم الطلب: ${orderData.orderNumber}`,
         `المنتج: ${orderData.product}`,
-        `السعر: ${orderData.price}`,
+        `السعر الوحدة: ${orderData.price}`,
+        `الكمية: ${orderData.quantity}`,
+        `الإجمالي: ${orderData.total}`,
         `الاسم: ${orderData.name}`,
         `الهاتف: ${orderData.phone}`,
         `البريد الإلكتروني: ${orderData.email}`,
@@ -235,7 +295,7 @@
         `العنوان: ${orderData.address}`,
         `طريقة الدفع: ${orderData.payment}`,
         `الملاحظة: ${orderData.note || 'لا يوجد'}`,
-        '-----------------------------',
+        '=============================',
         'شكراً لاختيارك Glorious Cosmetics.',
       ];
 
@@ -294,11 +354,15 @@
 
       const methodLabel = paymentMethod === 'cod' ? 'الدفع عند الاستلام' : 'الدفع ببطاقة';
       const orderNumber = createOrderNumber();
+      const quantity = parseInt(quantityInput.value, 10) || 1;
+      const totalPrice = basePrice * quantity;
 
       currentOrder = {
         orderNumber,
         product: productName,
         price: productPrice,
+        quantity,
+        total: totalPrice + ' DA',
         name,
         phone,
         email,
@@ -309,13 +373,20 @@
       };
 
       orderNumberField.textContent = orderNumber;
-      confirmProduct.textContent = productName;
-      confirmPrice.textContent = productPrice;
+      confirmProduct.textContent = productName + ' × ' + quantity;
+      confirmPrice.textContent = productPrice + ' (الوحدة)';
       confirmName.textContent = name;
       confirmPhone.textContent = phone;
       confirmCity.textContent = city;
       confirmAddress.textContent = address;
       confirmPayment.textContent = methodLabel;
+
+      // إضافة صف الإجمالي في التأكيد
+      const totalRow = document.createElement('div');
+      totalRow.className = 'detail-row';
+      totalRow.innerHTML = '<span>الإجمالي</span><strong>' + totalPrice + ' DA</strong>';
+      const confirmPaymentRow = confirmPayment.closest('.detail-row');
+      confirmPaymentRow.parentNode.insertBefore(totalRow, confirmPaymentRow.nextSibling);
 
       confirmationSection.classList.remove('hidden');
       confirmationSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
